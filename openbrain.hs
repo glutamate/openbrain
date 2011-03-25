@@ -16,6 +16,7 @@ import Prelude as P
 
 import Data.String
 import Data.Char
+import Data.List
 
 main = do
   --make dest, posts and static if not exist
@@ -27,43 +28,95 @@ main = do
   system "cp static/* dest/"
 
   --find all posts
-  posts <- fmap (filter (extIn ["ibug"])) $ getDirectoryContents "posts"
+  posts <- fmap (filter (extIn ["ibug", "ihs"])) $ getDirectoryContents "posts"
   setCurrentDirectory "posts"
   forM_  posts $ \post -> do
-      exists <- doesFileExist $ "../dest/"++setExt "html" post
+      title <- postTitle post
+      exists <- doesFileExist $ "../dest/"++urlify title++".html"
+--      print (exists, "../dest/"++setExt "html" post) 
       if not exists || "-f" `elem` args 
          then genPost post
          else do
-           tmHtml <- getModificationTime $  "../dest/"++setExt "html" post
+           tmHtml <- getModificationTime $ "../dest/"++urlify title++".html"
            tmSrc <-getModificationTime $ post
            when (tmSrc>tmHtml) $ genPost post
   --make index from posts list
-  postsWithTitles <- forM posts $ \post -> do
-     title <- postTitle post
-     return (title, urlify title++".html")
+  genIndex posts
+  putStrLn $ "file://"++curdir++"dest/index.html"
+  
   setCurrentDirectory curdir
-  writeFile "dest/index.html" $ renderHtml $ genIndex postsWithTitles
+  system "mv posts/*.png  dest/"
   return ()
 
-genIndex posts = docTypeHtml $ do
+genIndex posts = do 
+  posts1 <- forM posts $ \post -> do
+     title <- postTitle post
+     para1 <- postFirstPara post
+     tmSrc <-getModificationTime $ post
+     return (title, urlify title++".html", para1, tmSrc) 
+  writeFile "../dest/index.html" $ renderHtml $docTypeHtml $ do
      H.head $ do
-         H.title "Natural numbers"
+         H.title "openbrain blog"
+         link ! rel "stylesheet" ! href "style.css" ! type_ "text/css"
      body $ do
-         p "A list of natural numbers:"
-         ul $ forM_ posts linkpost
+         p "openbrain blog"
+         forM_ posts1 linkpost
 
-linkpost (title,url) = li $ a ! href (fromString url) $ toHtml title
+linkpost (title,url,para1, tm) = do 
+    H.div $ h2 $ a ! href (fromString url) $ toHtml title
+    H.div $ em $ small $ fromString $ show tm
+    p ""
+    H.div $ fromString para1
 
-genPost post = do 
+genPost post | "ibug" `isSuffixOf` post = do 
      title <- postTitle post
      putStrLn $ "Generating "++post++"..."
-     must $ system $ "bays --markdown -pngdir../dest "++post
+     must $ system $ "bays --markdown "++post
+     appendFile (setExt "md" post) =<< createBottom post
      must $ system $ "pandoc -V title-prefix=openbrain -c style.css -o "++setExt "html" post ++" "++setExt "md" post
-     must $ system $ "cp "++setExt "html" post++" ../dest/"++urlify title++".html"
+     must $ system $ "mv "++setExt "html" post++" ../dest/"++urlify title++".html"
+     must $ system $ "rm "++setExt "md" post
+     must $ system $ "cp "++post++" ../dest/"
+genPost post | "ihs" `isSuffixOf` post = do 
+     title <- postTitle post
+     putStrLn $ "Generating "++post++"..."
+     must $ system $ "inlit --nopandoc "++post
+     appendFile (setExt "md" post) =<< createBottom post
+     must $ system $ "pandoc -V title-prefix=openbrain -c style.css -o "++setExt "html" post ++" "++setExt "md" post
+     must $ system $ "mv "++setExt "html" post++" ../dest/"++urlify title++".html"
+     must $ system $ "rm "++setExt "md" post
+     must $ system $ "cp "++post++" ../dest/"
 
 
 postTitle post = 
   (drop 2 . P.head . lines) `fmap` readFile post
+postFirstPara post = 
+    (unlines . takeWhile para . dropWhile hdr . lines) `fmap` readFile post
+ where hdr ('%':s) = True
+       hdr [] = True
+       hdr ('>':_) = True
+       hdr _ = False
+       para ('>':_) = False 
+       para ('?':'>':_) = False
+       para s = True
+
+createBottom :: String -> IO String
+createBottom post = do
+  tmSrc <-getModificationTime post
+  let originalLink = case () of
+           _ |  "ibug" `isSuffixOf` post 
+                -> concat ["Created from an inliterate [baysig]",
+                           "(http://github.com/glutamate/baysig/) module: [",
+                           post, "](", post, ")"]
+           _ |  "ihs" `isSuffixOf` post 
+                -> concat ["Created from an [inliterate]",
+                           "(http://github.com/glutamate/inliterate/) ",
+                           "[Haskell](http://haskell.org) module: [",
+                           post, "](", post, ")"]
+  return $ "\n\n"++show tmSrc++"\n\n"++originalLink
+
+--postTitle post = 
+--  (drop 2 . P.head . lines) `fmap` readFile post
   
 
 urlify = P.map (toLower . spcsToHyph) where
@@ -88,12 +141,7 @@ whenM mb mx = do
 {- TODO
 
 -- adjustable template for posts
--- links from posts to index
--- index has first paragraph
--- posts html title
--- sensible urls
--- link to ibug file, copy it to dest too
--- also 
-
+-- links from posts to index, prev/next posts
+-- sort front page
 
 -}
