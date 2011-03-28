@@ -1,0 +1,31 @@
+% Gnewplot
+
+I am pleased to announce the release of Gnewplot, a set of high-level
+[Haskell](http://haskell.org) bindings to
+[gnuplot](http://gnuplot.info). These bindings are inspired by the
+[picture-language](http://mitpress.mit.edu/sicp/full-text/book/book-Z-H-15.html#%_sec_2.2.4)
+from Abelson and Sussman's Structure and Interpretation of Computer
+Programs. Thus, plots can be composed from vertical and horizontal
+juxtapositions of simpler plots. In addition, it uses Haskell's type
+system to modify the appearance of plots.
+
+In order to use the library, you need to import the Graphics.Gnewplot module
+ 
+> import Graphics.Gnewplot
+
+Values in Haskell data types are made atomically plottable by
+implementing the PlotWithGnuplot. If you want some basic pre-defined
+instance, you will also need to import the Graphics.Gnewplot.Instances module
+
+> import Graphics.Gnewplot.Instances
+
+here's some data 
+
+> someData :: [(Double,Double)]
+> someData = [(0.0, 1.0),(0.1, 2.0),(0.2, 1.4),(0.3, 1.7),(0.4, 1.0),
+>             (0.5, 1.8),(0.6, 1.1),(0.7, 1.5),(0.8, 1.2),(0.9, 1.9)]
+
+?> plot someData
+
+
+thats all folks
